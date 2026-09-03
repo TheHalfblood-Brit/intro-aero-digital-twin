@@ -1,6 +1,6 @@
 # Stage 4 Starter Specification: Live Cm–Alpha Relationship and Trim
 
-Student name: `[YOUR NAME]`
+Student name: `Patric Maxwell King`
 
 Complete only the boxes marked **STUDENT COMPLETES**. The instructor-provided engineering scope and the implementation contract must not be edited. When the specification is complete and approved, attach this one file to ChatGPT.
 
@@ -111,10 +111,10 @@ Use the assigned class values or values approved by your instructor. Show the su
 
 ```text
 Inputs:
-Cm0 = [COMPLETE]
-Cm_alpha = [COMPLETE] 1/rad
-alpha = [COMPLETE] deg
-delta_alpha = [COMPLETE] deg
+Cm0 = 0.04
+Cm_alpha = -0.8 1/rad
+alpha = 2.86 deg
+delta_alpha = +2.00 deg
 
 Angle conversion:
 alpha_rad = [SHOW WORK]
@@ -326,7 +326,7 @@ Contract rules:
 - `scene` is `null` because Section 10 requests no overlay.
 - `model.evaluate(runtimeContext)` returns `{ values }`, does not mutate its context, and does not repeat equations.
 - The required Stage 3 capability is read only through `capabilityContext` or `runtimeContext.capabilities`. Do not import an earlier student module.
-- Do not invent a time-response model. `analysis-only` still evaluates the capability when inputs change.
+- Do not invent a time-response model. `analysis-only` still eval \uates the capability when inputs change.
 
 ## Test contract
 
@@ -335,7 +335,7 @@ Contract rules:
 - Implement the completed numerical, behavioral, and boundary/sanity cases from Section 9.
 - Use justified tolerances for floating-point comparisons.
 - Do not test React components or copy equations into the expected-value side of a test when a pre-calculated reference number is available.
-- Do not claim that passing tests proves model validity, safety, or real-world validation.
+- Do not claim that passing tests proves model validity, safet            , or real-world validation.
 
 ## Required response format
 
