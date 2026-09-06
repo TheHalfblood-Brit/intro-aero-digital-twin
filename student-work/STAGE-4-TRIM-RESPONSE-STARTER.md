@@ -41,7 +41,7 @@ Classify the disturbance by the sign of `delta_alpha_rad * delta_Cm`:
 - positive: destabilizing tendency; and
 - zero: neutral tendency.
 
-Treat the selected condition as trimmed when `abs(Cm(alpha)) <= 1e-6`. Otherwise it is not trimmed. When `Cm_alpha` is zero, no unique trim angle can be calculated. Report that trim angle as not available rather than dividing by zero.
+Treat the selected condition as trimmed when `abs(Cm(alpha)) <= 1e-4`. Otherwise it is not trimmed. When `Cm_alpha` is zero, no unique trim angle can be calculated. Report that trim angle as not available rather than dividing by zero.
 
 Required earlier capability:
 
@@ -153,7 +153,7 @@ Inputs
   Cm_alpha = 0 1/rad
   delta_alpha = +2.00 deg
 Outputs/Relationship
-  Trim_Angle = NaN
+  Trim_Angle = -infinity
   Delta_Cm = 0
 Neutral Tendency
 
