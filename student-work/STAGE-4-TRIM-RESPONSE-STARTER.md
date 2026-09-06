@@ -153,7 +153,7 @@ Inputs
   Cm_alpha = 0 1/rad
   delta_alpha = +2.00 deg
 Outputs/Relationship
-  Trim_Angle = -infinity
+  Trim_Angle = not available
   Delta_Cm = 0
 Neutral Tendency
 
