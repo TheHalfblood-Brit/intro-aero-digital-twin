@@ -117,8 +117,8 @@ alpha = 2.86 deg
 delta_alpha = +2.00 deg
 
 Angle conversion:
-alpha_rad = 2.86 * π/180 = 0.05 radians
-delta_alpha_rad = 2.00 * π/180 = π/90 radians
+alpha_rad = 2.86 * π/180 = 0.04991642 radians
+delta_alpha_rad = 2.00 * π/180 = 0.03490658503 radians
 
 Current pitching-moment coefficient:
 Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8alpha 
@@ -186,7 +186,7 @@ alpha_rad = 2.86 * π/180 = 0.05 radians
 delta_alpha_rad = 2.00 * π/180 = π/90 radians
 
 Current pitching-moment coefficient:
-Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8 * 0.05 = 0
+Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8 * 0.04991642 = 0.000066864
 
 Trim angle:
 alpha_trim_rad = 0.05 radians
