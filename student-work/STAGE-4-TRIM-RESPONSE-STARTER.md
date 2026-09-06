@@ -117,8 +117,8 @@ alpha = 2.86 deg
 delta_alpha = +2.00 deg
 
 Angle conversion:
-alpha_rad = 2.86 * π/180 = 0.05
-delta_alpha_rad = 2.00 * π/180 = π/90
+alpha_rad = 2.86 * π/180 = 0.05 radians
+delta_alpha_rad = 2.00 * π/180 = π/90 radians
 
 Current pitching-moment coefficient:
 Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8alpha 
@@ -143,7 +143,7 @@ Inputs
   Cm_alpha = -0.8 1/rad
   delta_alpha = +2.00 deg
 Outputs/Relationship
-  Trim_Angle = 0.05 deg; alpha_trim > 0
+  Trim_Angle = 0.05 radians; alpha_trim > 0
   Delta_Cm = -0.0279; Delta_Cm < 0 
 Restoring Tendency 
 
@@ -153,7 +153,7 @@ Inputs
   Cm_alpha = 0 1/rad
   delta_alpha = +2.00 deg
 Outputs/Relationship
-  Trim_Angle = 0 
+  Trim_Angle = NaN
   Delta_Cm = 0
 Neutral Tendency
 
@@ -163,17 +163,39 @@ Inputs
   Cm_alpha = +0.8 1/rad
   delta_alpha = +2.00 deg
 Outputs/Relationship
-  Trim_Angle = -0.05 deg; alpha_trim < 0
+  Trim_Angle = -0.05 radians; alpha_trim < 0
   Delta_Cm = 0.0279; Delta_Cm > 0 
-Divergetnt Tendency
+Destabilizing Tendency
 
 ### 9.1 Numerical case
 
 Use your Section 8 reference calculation.
 
 ```text
-delta_Cm = -0.8 * 0.03491 = -0.0279
-Restoring Tendency
+Case 1 : Restoring; Aircraft develops a force which returns it to equilibrium after a disturbance
+Case 2 : Neutral; No correcting tendencies after disturbance
+Case 3 : Aircraft develops a force which pushes it further from equilibrium after a distrbance
+Inputs:
+Cm0 = 0.04
+Cm_alpha = -0.8 1/rad
+alpha = 2.86 deg
+delta_alpha = +2.00 deg
+
+Angle conversion:
+alpha_rad = 2.86 * π/180 = 0.05 radians
+delta_alpha_rad = 2.00 * π/180 = π/90 radians
+
+Current pitching-moment coefficient:
+Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8 * 0.05 = 0
+
+Trim angle:
+alpha_trim_rad = 0.05 radians
+alpha_trim_deg = +2.86 degrees
+
+Disturbance response:
+delta_Cm = -0.8 * 0.03491 rad
+Tolerance: +- 1e-6 for Cm(Alpha)/delta_Cm, +-1e-4 deg alpha_trim_deg
+
 ```
 
 ### 9.2 Behavioral case
