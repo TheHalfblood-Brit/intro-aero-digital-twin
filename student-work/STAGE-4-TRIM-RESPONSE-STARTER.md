@@ -99,11 +99,11 @@ Also make the calculated values available through the provided `stability.pitch.
 
 Before asking ChatGPT for code, complete each prediction in your own words.
 
-1. If `Cm_alpha < 0` and the angle-of-attack disturbance is positive, `delta_Cm` should be `[COMPLETE]` because `[COMPLETE]`.
-2. If `Cm_alpha > 0` and the angle-of-attack disturbance is positive, the response should be `[COMPLETE]` because `[COMPLETE]`.
-3. If `Cm_alpha = 0`, changing angle of attack should `[COMPLETE]`.
-4. If `Cm0` is fixed and the magnitude of a nonzero `Cm_alpha` increases, the trim angle magnitude should `[COMPLETE]`.
-5. Doubling `disturbanceAlphaDeg` while holding `Cm_alpha` fixed should `[COMPLETE]`.
+1. If `Cm_alpha < 0` and the angle-of-attack disturbance is positive, `delta_Cm` should be `< 0` because `a negative pitching moment will be needed to bring the plane back to trim state`.
+2. If `Cm_alpha > 0` and the angle-of-attack disturbance is positive, the response should be `unstable` because `a nose up moment will be generated causing the AoA to increase even further`.
+3. If `Cm_alpha = 0`, changing angle of attack should `result in no correcting moment`.
+4. If `Cm0` is fixed and the magnitude of a nonzero `Cm_alpha` increases, the trim angle magnitude should `decrease`.
+5. Doubling `disturbanceAlphaDeg` while holding `Cm_alpha` fixed should `double the magnitude of the resulting change in the delta_Cm`.
 
 ## 8. Reference Calculation — STUDENT COMPLETES
 
@@ -117,34 +117,63 @@ alpha = 2.86 deg
 delta_alpha = +2.00 deg
 
 Angle conversion:
-alpha_rad = [SHOW WORK]
-delta_alpha_rad = [SHOW WORK]
+alpha_rad = 2.86 * π/180 = 0.05
+delta_alpha_rad = 2.00 * π/180 = π/90
 
 Current pitching-moment coefficient:
-Cm(alpha) = [SHOW WORK]
+Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8alpha 
 
 Trim angle:
-alpha_trim_rad = [SHOW WORK]
-alpha_trim_deg = [SHOW WORK]
+alpha_trim_rad = 0.05 radians
+alpha_trim_deg = 2.86 degrees
 
 Disturbance response:
-delta_Cm = [SHOW WORK]
+delta_Cm = -0.8 * 0.03491 rad
 
 Expected classifications:
-selected condition = [trimmed / not trimmed]
-disturbance tendency = [restoring / neutral / destabilizing]
+selected condition = [trimmed]
+disturbance tendency = [restoring]
 ```
 
 ## 9. Verification Cases — STUDENT COMPLETES
 
-Define all three cases before implementation. Include exact inputs, expected outputs or relationships, units, and a justified numerical tolerance where relevant.
+Case 1: Statically Stable 
+Inputs
+  Cm0 = 0.04
+  Cm_alpha = -0.8 1/rad
+  delta_alpha = +2.00 deg
+Outputs/Relationship
+  Trim_Angle = 0.05 deg; alpha_trim > 0
+  Delta_Cm = -0.0279; Delta_Cm < 0 
+Restoring Tendency 
+
+Case 2: Neutrally Stable 
+Inputs
+  Cm0 = 0.04
+  Cm_alpha = 0 1/rad
+  delta_alpha = +2.00 deg
+Outputs/Relationship
+  Trim_Angle = 0 
+  Delta_Cm = 0
+Neutral Tendency
+
+Case 3: Statically Unstable 
+Inputs
+  Cm0 = 0.04
+  Cm_alpha = +0.8 1/rad
+  delta_alpha = +2.00 deg
+Outputs/Relationship
+  Trim_Angle = -0.05 deg; alpha_trim < 0
+  Delta_Cm = 0.0279; Delta_Cm > 0 
+Divergetnt Tendency
 
 ### 9.1 Numerical case
 
 Use your Section 8 reference calculation.
 
 ```text
-[COMPLETE]
+delta_Cm = -0.8 * 0.03491 = -0.0279
+Restoring Tendency
 ```
 
 ### 9.2 Behavioral case
@@ -152,7 +181,8 @@ Use your Section 8 reference calculation.
 Change one input and state the exact trend or sign that must result.
 
 ```text
-[COMPLETE]
+New Input: Delta_Alpha = -2.00 deg
+Delta_Cm = -0.8 * -0.0349 = +0.0279
 ```
 
 ### 9.3 Boundary or sanity case
@@ -160,7 +190,11 @@ Change one input and state the exact trend or sign that must result.
 Use an informative boundary such as zero slope, zero disturbance, or the trim condition. State the exact behavior expected and why division by zero or a false physical claim must not occur.
 
 ```text
-[COMPLETE]
+Zero Slope ie. Cm_alpha = 0
+
+alpha_trim = -Cm0/Cm_alpha; alpha_trim = -Cm0/0
+If Cm_Alpha = 0, pitching moment is constant at all AoA
+Therefore pitching moment can never cross zero, and division by zero DNE, thus no trim state exists
 ```
 
 ## 10. Feature Requirements
@@ -196,7 +230,7 @@ Do not modify any existing file.
 In one or two sentences, state what decision the completed feature will support and what it cannot establish.
 
 ```text
-[COMPLETE]
+The feature supports a decision regarding the correct state of aircraft's CoG to achieve static longitudinal stab and a trim state, but it cannot establish aircraft dynamic stability
 ```
 
 ---
