@@ -125,7 +125,7 @@ Cm(alpha) = Cm0 + Cm_alpha = 0.04 - 0.8alpha
 
 Trim angle:
 alpha_trim_rad = 0.05 radians
-alpha_trim_deg = 2.864789 degrees
+alpha_trim_deg = 2.86 degrees
 
 Disturbance response:
 delta_Cm = -0.8 * 0.03491 rad
