@@ -57,6 +57,10 @@ function hasRequiredCapability(capabilitySource, id, minVersion) {
   return typeof version === "number" && version >= minVersion;
 }
 
+// src/student/features/trim-response.feature.js — only buildVerificationCases() changed:
+// every "description:" key below is renamed to "label:" to match the
+// repository's fixed adapter contract (tests/core/stage4-integration.test.js).
+
 function buildVerificationCases() {
   // Case 1 — statically stable (Cm_alpha = -0.8)
   const case1TrimAngleDeg = computeTrimAngleDeg(0.04, -0.8);
@@ -89,8 +93,7 @@ function buildVerificationCases() {
     case3DeltaCm > 0 &&
     case3Tendency === "destabilizing";
 
-  // Section 9.1 — numerical reference case: selected angle (2.86 deg) is
-  // the rounded trim angle, so Cm(alpha) sits within (not exactly at) zero.
+  // Section 9.1 — numerical reference case
   const ref = computeTrimResponse({
     cm0: 0.04,
     cmAlphaPerRad: -0.8,
@@ -103,14 +106,13 @@ function buildVerificationCases() {
     withinTolerance(ref.deltaCm, -0.0279, REFERENCE_VALUE_TOLERANCE) &&
     ref.tendency === "restoring";
 
-  // Section 9.2 — behavioral case: flipping the disturbance sign flips
-  // delta_Cm's sign while holding its magnitude.
+  // Section 9.2 — behavioral case
   const flippedDeltaCm = computeDeltaCm(-0.8, -2.0);
   const behavioralPassed =
     flippedDeltaCm > 0 &&
     withinTolerance(flippedDeltaCm, 0.0279, REFERENCE_VALUE_TOLERANCE);
 
-  // Section 9.3 — boundary case: Cm_alpha = 0 must not divide by zero.
+  // Section 9.3 — boundary case
   let boundaryPassed;
   try {
     boundaryPassed = computeTrimAngleDeg(0.04, 0) === "not available";
@@ -121,37 +123,36 @@ function buildVerificationCases() {
   return [
     {
       id: "case1-statically-stable",
-      description:
+      label:
         "Case 1 (Cm_alpha = -0.8): trim angle positive, delta_Cm negative, restoring tendency.",
       passed: case1Passed,
     },
     {
       id: "case2-neutrally-stable",
-      description:
+      label:
         "Case 2 (Cm_alpha = 0): trim angle not available, delta_Cm = 0, neutral tendency.",
       passed: case2Passed,
     },
     {
       id: "case3-statically-unstable",
-      description:
+      label:
         "Case 3 (Cm_alpha = +0.8): trim angle negative, delta_Cm positive, destabilizing tendency.",
       passed: case3Passed,
     },
     {
       id: "section-9-1-reference-case",
-      description:
+      label:
         "Reference case (alpha = 2.86 deg = trim angle): Cm(alpha) within trimmed tolerance of 0, trimmed, restoring.",
       passed: refPassed,
     },
     {
       id: "section-9-2-behavioral-case",
-      description:
-        "Flipping disturbanceAlphaDeg sign flips delta_Cm sign, same magnitude.",
+      label: "Flipping disturbanceAlphaDeg sign flips delta_Cm sign, same magnitude.",
       passed: behavioralPassed,
     },
     {
       id: "section-9-3-boundary-case",
-      description:
+      label:
         'Cm_alpha = 0 reports trim angle as "not available" without dividing by zero.',
       passed: boundaryPassed,
     },
@@ -272,13 +273,18 @@ export const feature = {
     };
 
     const curve = generateCmAlphaCurve(cm0, cmAlphaPerRad, angleOfAttackDeg);
-    const plots = [
+        const plots = [
       {
         id: "cmAlphaCurve",
         title: "Cm vs angle of attack",
-        xAxisLabel: "Angle of attack (deg)",
-        yAxisLabel: "Cm (dimensionless)",
-        series: curve.map((p) => ({ x: p.angleOfAttackDeg, y: p.cm })),
+        xLabel: "Angle of attack (deg)",
+        yLabel: "Cm (dimensionless)",
+        series: [
+          {
+            label: "Cm(alpha)",
+            points: curve.map((p) => ({ x: p.angleOfAttackDeg, y: p.cm })),
+          },
+        ],
         regions: [],
         referenceLines: [{ label: "Trim line (Cm = 0)", axis: "y", value: 0 }],
       },

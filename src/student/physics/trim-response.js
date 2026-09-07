@@ -20,6 +20,15 @@ function assertFiniteNumber(value, name) {
   }
 }
 
+/**
+ * Collapses negative zero to positive zero. Negative zero is mathematically
+ * equal to zero but fails strict (Object.is-based) equality checks and can
+ * display as "-0" — neither of which has any physical meaning in this model.
+ */
+function normalizeZero(value) {
+  return value === 0 ? 0 : value;
+}
+
 /** Convert an angle in degrees to radians. */
 export function degToRad(angleDeg) {
   assertFiniteNumber(angleDeg, "angleDeg");
@@ -42,7 +51,7 @@ export function computeCmAtAlpha(cm0, cmAlphaPerRad, angleOfAttackDeg) {
   assertFiniteNumber(cm0, "cm0");
   assertFiniteNumber(cmAlphaPerRad, "cmAlphaPerRad");
   const alphaRad = degToRad(angleOfAttackDeg);
-  return cm0 + cmAlphaPerRad * alphaRad;
+  return normalizeZero(cm0 + cmAlphaPerRad * alphaRad);
 }
 
 /**
@@ -58,7 +67,7 @@ export function computeTrimAngleDeg(cm0, cmAlphaPerRad) {
     return "not available";
   }
   const alphaTrimRad = -cm0 / cmAlphaPerRad;
-  return radToDeg(alphaTrimRad);
+  return normalizeZero(radToDeg(alphaTrimRad));
 }
 
 /**
@@ -69,7 +78,7 @@ export function computeTrimAngleDeg(cm0, cmAlphaPerRad) {
 export function computeDeltaCm(cmAlphaPerRad, disturbanceAlphaDeg) {
   assertFiniteNumber(cmAlphaPerRad, "cmAlphaPerRad");
   const deltaAlphaRad = degToRad(disturbanceAlphaDeg);
-  return cmAlphaPerRad * deltaAlphaRad;
+  return normalizeZero(cmAlphaPerRad * deltaAlphaRad);
 }
 
 /**
