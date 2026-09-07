@@ -4,273 +4,284 @@
 // components. Calls only the imported pure physics functions; does not
 // repeat any equation from trim-response.js or any earlier stage.
 
-iimport {
-  computeCmAtAlpha,
+import {
   computeTrimAngleDeg,
   computeDeltaCm,
-  isTrimmed,
-  classifyDisturbanceTendency
+  classifyDisturbanceTendency,
+  computeTrimResponse,
+  generateCmAlphaCurve,
+  radToDeg,
 } from "../physics/trim-response.js";
 
 const ENGINEERING_QUESTION =
   "At the selected angle of attack, is the simplified pitching-moment model trimmed, and does a small angle-of-attack disturbance create a restoring moment tendency?";
 
 const REQUIRED_CAPABILITY_ID = "loads.pitch.component-sum";
-const REQUIRED_CAPABILITY_VERSION = 1;
+const REQUIRED_CAPABILITY_MIN_VERSION = 1;
 
-const PLOT_RANGE_DEG = { min: -10, max: 10, stepDeg: 1 };
+// See implementation notes above the code blocks: the given ±1e-6 Section
+// 9.1 tolerance is tighter than the given 4-decimal-place reference numbers
+// (e.g. "-0.0279") can support, so ±1e-4 is used for Cm(alpha)/delta_Cm
+// reference comparisons — the same magnitude as the model's own "trimmed"
+// classification tolerance (Section 2). The trim-angle tolerance of ±1e-4
+// deg is used as stated, since its reference (0.05 rad) is exact.
+const REFERENCE_VALUE_TOLERANCE = 1e-4;
+const TRIM_ANGLE_DEG_TOLERANCE = 1e-4;
 
-// Defensive capability check. The exact capabilityContext shape is not part
-// of this specification, so several common access patterns are tried; if
-// none can confirm the capability, it is treated as unavailable rather than
-// throwing. The provided app-level requiresCapabilities gating is the
-// primary lock — this is a secondary, in-analyze confirmation only.
-function isRequiredCapabilityAvailable(capabilityContext) {
-  if (!capabilityContext) return false;
-  if (typeof capabilityContext.has === "function") {
-    return Boolean(
-      capabilityContext.has(REQUIRED_CAPABILITY_ID, REQUIRED_CAPABILITY_VERSION)
-    );
-  }
-  if (typeof capabilityContext.get === "function") {
-    return capabilityContext.get(REQUIRED_CAPABILITY_ID) != null;
-  }
-  const caps = capabilityContext.capabilities;
-  if (Array.isArray(caps)) {
-    return caps.some(
-      (cap) =>
-        cap &&
-        cap.id === REQUIRED_CAPABILITY_ID &&
-        cap.version >= REQUIRED_CAPABILITY_VERSION
-    );
-  }
-  if (caps && typeof caps === "object") {
-    return caps[REQUIRED_CAPABILITY_ID] != null;
-  }
-  // capabilityContext may itself be a flat id -> version (or id -> truthy) map.
-  if (
-    Object.prototype.hasOwnProperty.call(capabilityContext, REQUIRED_CAPABILITY_ID)
-  ) {
-    const entry = capabilityContext[REQUIRED_CAPABILITY_ID];
-    if (typeof entry === "number") return entry >= REQUIRED_CAPABILITY_VERSION;
-    return entry != null && entry !== false;
-  }
-  return false;
+function withinTolerance(actual, expected, tolerance) {
+  return (
+    typeof actual === "number" &&
+    Number.isFinite(actual) &&
+    Math.abs(actual - expected) <= tolerance
+  );
 }
 
-// Builds the Cm-alpha curve from -10 deg to +10 deg using the physics
-// function, and ensures the selected angle of attack is included as a point
-// even if it falls between grid steps.
-function buildCmAlphaSeries(cm0, cmAlphaPerRad, angleOfAttackDeg) {
-  const { min, max, stepDeg } = PLOT_RANGE_DEG;
-  const points = [];
-  for (let deg = min; deg <= max; deg += stepDeg) {
-    points.push({ x: deg, y: computeCmAtAlpha(cm0, cmAlphaPerRad, deg) });
+// Duck-typed capability lookup: the exact capabilityContext / capabilities
+// shape isn't defined in this specification, so a few conventional shapes
+// are supported defensively rather than assumed.
+function resolveCapabilityVersion(capabilitySource, id) {
+  if (!capabilitySource) return undefined;
+  if (typeof capabilitySource.getCapabilityVersion === "function") {
+    return capabilitySource.getCapabilityVersion(id);
   }
-  if (angleOfAttackDeg >= min && angleOfAttackDeg <= max) {
-    const alreadyOnGrid = points.some(
-      (p) => Math.abs(p.x - angleOfAttackDeg) < 1e-9
-    );
-    if (!alreadyOnGrid) {
-      points.push({
-        x: angleOfAttackDeg,
-        y: computeCmAtAlpha(cm0, cmAlphaPerRad, angleOfAttackDeg)
-      });
-    }
+  if (typeof capabilitySource.get === "function") {
+    const entry = capabilitySource.get(id);
+    return typeof entry === "number" ? entry : entry?.version;
   }
-  points.sort((a, b) => a.x - b.x);
-  return points;
+  const entry = capabilitySource[id];
+  return typeof entry === "number" ? entry : entry?.version;
 }
 
-// The three student-defined verification cases from Section 9, evaluated
-// with the imported physics functions (not hard-coded booleans).
+function hasRequiredCapability(capabilitySource, id, minVersion) {
+  const version = resolveCapabilityVersion(capabilitySource, id);
+  return typeof version === "number" && version >= minVersion;
+}
+
 function buildVerificationCases() {
-  const case1 = { cm0: 0.04, cmAlphaPerRad: -0.8, disturbanceAlphaDeg: 2.0 };
-  const case1TrimDeg = computeTrimAngleDeg(case1.cm0, case1.cmAlphaPerRad);
-  const case1DeltaCm = computeDeltaCm(case1.cmAlphaPerRad, case1.disturbanceAlphaDeg);
-  const case1Tendency = classifyDisturbanceTendency(case1.disturbanceAlphaDeg, case1DeltaCm);
+  // Case 1 — statically stable (Cm_alpha = -0.8)
+  const case1TrimAngleDeg = computeTrimAngleDeg(0.04, -0.8);
+  const case1DeltaCm = computeDeltaCm(-0.8, 2.0);
+  const case1Tendency = classifyDisturbanceTendency(2.0, case1DeltaCm);
+  const case1Passed =
+    withinTolerance(case1TrimAngleDeg, radToDeg(0.05), TRIM_ANGLE_DEG_TOLERANCE) &&
+    case1TrimAngleDeg > 0 &&
+    withinTolerance(case1DeltaCm, -0.0279, REFERENCE_VALUE_TOLERANCE) &&
+    case1DeltaCm < 0 &&
+    case1Tendency === "restoring";
 
-  const case2 = { cm0: 0.04, cmAlphaPerRad: 0, disturbanceAlphaDeg: 2.0 };
-  const case2TrimDeg = computeTrimAngleDeg(case2.cm0, case2.cmAlphaPerRad);
-  const case2DeltaCm = computeDeltaCm(case2.cmAlphaPerRad, case2.disturbanceAlphaDeg);
-  const case2Tendency = classifyDisturbanceTendency(case2.disturbanceAlphaDeg, case2DeltaCm);
+  // Case 2 — neutrally stable (Cm_alpha = 0)
+  const case2TrimAngleDeg = computeTrimAngleDeg(0.04, 0);
+  const case2DeltaCm = computeDeltaCm(0, 2.0);
+  const case2Tendency = classifyDisturbanceTendency(2.0, case2DeltaCm);
+  const case2Passed =
+    case2TrimAngleDeg === "not available" &&
+    case2DeltaCm === 0 &&
+    case2Tendency === "neutral";
 
-  const case3 = { cm0: 0.04, cmAlphaPerRad: 0.8, disturbanceAlphaDeg: 2.0 };
-  const case3TrimDeg = computeTrimAngleDeg(case3.cm0, case3.cmAlphaPerRad);
-  const case3DeltaCm = computeDeltaCm(case3.cmAlphaPerRad, case3.disturbanceAlphaDeg);
-  const case3Tendency = classifyDisturbanceTendency(case3.disturbanceAlphaDeg, case3DeltaCm);
+  // Case 3 — statically unstable (Cm_alpha = +0.8)
+  const case3TrimAngleDeg = computeTrimAngleDeg(0.04, 0.8);
+  const case3DeltaCm = computeDeltaCm(0.8, 2.0);
+  const case3Tendency = classifyDisturbanceTendency(2.0, case3DeltaCm);
+  const case3Passed =
+    withinTolerance(case3TrimAngleDeg, radToDeg(-0.05), TRIM_ANGLE_DEG_TOLERANCE) &&
+    case3TrimAngleDeg < 0 &&
+    withinTolerance(case3DeltaCm, 0.0279, REFERENCE_VALUE_TOLERANCE) &&
+    case3DeltaCm > 0 &&
+    case3Tendency === "destabilizing";
+
+  // Section 9.1 — numerical reference case: selected angle (2.86 deg) is
+  // the rounded trim angle, so Cm(alpha) sits within (not exactly at) zero.
+  const ref = computeTrimResponse({
+    cm0: 0.04,
+    cmAlphaPerRad: -0.8,
+    angleOfAttackDeg: 2.86,
+    disturbanceAlphaDeg: 2.0,
+  });
+  const refPassed =
+    withinTolerance(ref.cmAtAlpha, 0, REFERENCE_VALUE_TOLERANCE) &&
+    ref.trimmed === true &&
+    withinTolerance(ref.deltaCm, -0.0279, REFERENCE_VALUE_TOLERANCE) &&
+    ref.tendency === "restoring";
+
+  // Section 9.2 — behavioral case: flipping the disturbance sign flips
+  // delta_Cm's sign while holding its magnitude.
+  const flippedDeltaCm = computeDeltaCm(-0.8, -2.0);
+  const behavioralPassed =
+    flippedDeltaCm > 0 &&
+    withinTolerance(flippedDeltaCm, 0.0279, REFERENCE_VALUE_TOLERANCE);
+
+  // Section 9.3 — boundary case: Cm_alpha = 0 must not divide by zero.
+  let boundaryPassed;
+  try {
+    boundaryPassed = computeTrimAngleDeg(0.04, 0) === "not available";
+  } catch {
+    boundaryPassed = false;
+  }
 
   return [
     {
-      id: "case-1-statically-stable",
-      label: "Statically stable (Cm_alpha < 0)",
-      passed:
-        typeof case1TrimDeg === "number" &&
-        case1TrimDeg > 0 &&
-        case1DeltaCm < 0 &&
-        case1Tendency === "restoring"
+      id: "case1-statically-stable",
+      description:
+        "Case 1 (Cm_alpha = -0.8): trim angle positive, delta_Cm negative, restoring tendency.",
+      passed: case1Passed,
     },
     {
-      id: "case-2-neutrally-stable",
-      label: "Neutrally stable (Cm_alpha = 0)",
-      passed:
-        case2TrimDeg === "not available" &&
-        case2DeltaCm === 0 &&
-        case2Tendency === "neutral"
+      id: "case2-neutrally-stable",
+      description:
+        "Case 2 (Cm_alpha = 0): trim angle not available, delta_Cm = 0, neutral tendency.",
+      passed: case2Passed,
     },
     {
-      id: "case-3-statically-unstable",
-      label: "Statically unstable (Cm_alpha > 0)",
-      passed:
-        typeof case3TrimDeg === "number" &&
-        case3TrimDeg < 0 &&
-        case3DeltaCm > 0 &&
-        case3Tendency === "destabilizing"
-    }
+      id: "case3-statically-unstable",
+      description:
+        "Case 3 (Cm_alpha = +0.8): trim angle negative, delta_Cm positive, destabilizing tendency.",
+      passed: case3Passed,
+    },
+    {
+      id: "section-9-1-reference-case",
+      description:
+        "Reference case (alpha = 2.86 deg = trim angle): Cm(alpha) within trimmed tolerance of 0, trimmed, restoring.",
+      passed: refPassed,
+    },
+    {
+      id: "section-9-2-behavioral-case",
+      description:
+        "Flipping disturbanceAlphaDeg sign flips delta_Cm sign, same magnitude.",
+      passed: behavioralPassed,
+    },
+    {
+      id: "section-9-3-boundary-case",
+      description:
+        'Cm_alpha = 0 reports trim angle as "not available" without dividing by zero.',
+      passed: boundaryPassed,
+    },
   ];
 }
 
 export const feature = {
   contractVersion: 4,
   id: "trim-response",
-  title: "Live Cm\u2013alpha relationship and trim",
+  title: "Live Cm–alpha relationship and trim",
   description:
-    "Evaluates whether the linear Cm-alpha model is trimmed at the selected angle of attack and classifies the tendency of a small disturbance.",
-  category: "Stability \u00b7 Student feature",
+    "Evaluates whether the linear Cm-alpha pitching-moment model is trimmed at the selected angle of attack and whether a small angle-of-attack disturbance produces a restoring or destabilizing tendency.",
+  category: "Stability · Student feature",
   learningMode: "concept",
   topicId: "stability",
-  inputKeys: [
-    "cm0",
-    "cmAlphaPerRad",
-    "angleOfAttackDeg",
-    "disturbanceAlphaDeg"
-  ],
+  inputKeys: ["cm0", "cmAlphaPerRad", "angleOfAttackDeg", "disturbanceAlphaDeg"],
   requiresCapabilities: [
-    { id: REQUIRED_CAPABILITY_ID, version: REQUIRED_CAPABILITY_VERSION }
+    { id: REQUIRED_CAPABILITY_ID, version: REQUIRED_CAPABILITY_MIN_VERSION },
   ],
   providesCapabilities: [{ id: "stability.pitch.cm-alpha", version: 1 }],
   assumptions: [
-    "The Cm-alpha relationship is linear over the investigated range.",
-    "The model is quasi-static and represents a small disturbance about the selected condition.",
+    "Cm-alpha relationship assumed linear over the investigated range.",
+    "Quasi-static model representing a small disturbance about the selected condition.",
     "Cm0 and Cm_alpha represent the same aircraft configuration and flight condition.",
-    "Sign convention: positive nose-up pitching moment and positive nose-up angle of attack."
+    "Positive nose-up sign convention for pitching moment and angle of attack.",
   ],
   validityLimits: [
-    "Not valid at stall, at large angle of attack, or where aerodynamic coefficients are strongly nonlinear.",
+    "Not valid at stall, large angle of attack, or where coefficients are strongly nonlinear.",
     "Does not calculate a time history, damping, control motion, or handling quality.",
-    "A restoring tendency here is not proof of acceptable safety, controllability, or flightworthiness.",
-    "The calculated trim angle is meaningful only where the linear model remains valid at that angle."
+    "A restoring tendency here is not proof of safety, controllability, or flightworthiness.",
+    "Calculated trim angle is meaningful only where the linear model remains valid at that angle.",
   ],
   simulation: {
     display: "analysis-only",
     durationS: 1,
     initialState: {},
     controls: {},
-    disturbance: {}
+    disturbance: {},
   },
 
   analyze(aircraft, capabilityContext) {
-    if (!isRequiredCapabilityAvailable(capabilityContext)) {
+    const capabilityAvailable = hasRequiredCapability(
+      capabilityContext,
+      REQUIRED_CAPABILITY_ID,
+      REQUIRED_CAPABILITY_MIN_VERSION
+    );
+
+    if (!capabilityAvailable) {
       return {
         results: [],
         verificationCases: [],
         decision: {
           question: ENGINEERING_QUESTION,
-          interpretation:
-            "Required capability loads.pitch.component-sum (v1) is not confirmed available, so no trim evaluation was performed.",
-          status: "caution"
+          interpretation: `Locked: required capability "${REQUIRED_CAPABILITY_ID}" (v${REQUIRED_CAPABILITY_MIN_VERSION}+) is not yet available.`,
+          status: "neutral",
         },
         plots: [],
-        scene: null
+        scene: null,
       };
     }
 
     const { cm0, cmAlphaPerRad, angleOfAttackDeg, disturbanceAlphaDeg } = aircraft;
-
-    const cmAtAlpha = computeCmAtAlpha(cm0, cmAlphaPerRad, angleOfAttackDeg);
-    const trimAngleDeg = computeTrimAngleDeg(cm0, cmAlphaPerRad);
-    const deltaCm = computeDeltaCm(cmAlphaPerRad, disturbanceAlphaDeg);
-    const trimmed = isTrimmed(cmAtAlpha);
-    const tendency = classifyDisturbanceTendency(disturbanceAlphaDeg, deltaCm);
+    const { cmAtAlpha, trimAngleDeg, deltaCm, trimmed, tendency } =
+      computeTrimResponse({ cm0, cmAlphaPerRad, angleOfAttackDeg, disturbanceAlphaDeg });
 
     const results = [
       {
         id: "cmAtAlpha",
-        label: "Cm(alpha)",
+        label: "Cm at selected angle of attack",
         value: cmAtAlpha,
         unit: "",
         precision: 4,
-        emphasis: true
+        emphasis: true,
       },
       {
         id: "trimAngleDeg",
         label: "Trim angle",
         value: trimAngleDeg,
-        unit: typeof trimAngleDeg === "number" ? "deg" : "",
+        unit: trimAngleDeg === "not available" ? "" : "deg",
         precision: 2,
-        emphasis: false
       },
       {
         id: "deltaCm",
-        label: "Delta Cm",
+        label: "Disturbance ΔCm",
         value: deltaCm,
         unit: "",
         precision: 4,
-        emphasis: false
       },
       {
-        id: "trimmedStatus",
-        label: "Trimmed",
+        id: "trimmed",
+        label: "Trim status",
         value: trimmed ? "trimmed" : "not trimmed",
         unit: "",
         precision: 0,
-        emphasis: false
       },
       {
-        id: "disturbanceTendency",
+        id: "tendency",
         label: "Disturbance tendency",
         value: tendency,
         unit: "",
         precision: 0,
-        emphasis: false
-      }
+      },
     ];
 
-    let status;
-    if (trimmed && tendency === "restoring") {
-      status = "pass";
-    } else if (!trimmed) {
-      status = "neutral";
-    } else {
-      status = "caution";
-    }
+    const status =
+      trimmed && tendency === "restoring"
+        ? "pass"
+        : tendency === "destabilizing"
+        ? "caution"
+        : "neutral";
 
     const decision = {
       question: ENGINEERING_QUESTION,
-      interpretation: trimmed
-        ? `The selected condition is trimmed (|Cm(alpha)| within tolerance), with a ${tendency} disturbance tendency. This linear, quasi-static result does not establish dynamic stability, controllability, or flightworthiness.`
-        : `The selected condition is not trimmed (Cm(alpha) is nonzero). Disturbance tendency is ${tendency}. This linear, quasi-static result does not establish dynamic stability, controllability, or flightworthiness.`,
-      status
+      interpretation: `At the selected angle of attack the linear model is ${
+        trimmed ? "trimmed" : "not trimmed"
+      }, and the disturbance response is ${tendency}. This reflects only the static tendency of this simplified linear model; it does not establish dynamic stability, controllability, or flightworthiness.`,
+      status,
     };
 
+    const curve = generateCmAlphaCurve(cm0, cmAlphaPerRad, angleOfAttackDeg);
     const plots = [
       {
-        id: "cm-alpha",
+        id: "cmAlphaCurve",
         title: "Cm vs angle of attack",
-        xLabel: "Angle of attack (deg)",
-        yLabel: "Cm(alpha)",
-        series: [
-          {
-            id: "cm-alpha-curve",
-            label: "Cm(alpha)",
-            points: buildCmAlphaSeries(cm0, cmAlphaPerRad, angleOfAttackDeg)
-          }
-        ],
-        referenceLines: [
-          { id: "cm-zero", label: "Trim line (Cm = 0)", axis: "y", value: 0 }
-        ],
-        regions: []
-      }
+        xAxisLabel: "Angle of attack (deg)",
+        yAxisLabel: "Cm (dimensionless)",
+        series: curve.map((p) => ({ x: p.angleOfAttackDeg, y: p.cm })),
+        regions: [],
+        referenceLines: [{ label: "Trim line (Cm = 0)", axis: "y", value: 0 }],
+      },
     ];
 
     return {
@@ -278,34 +289,22 @@ export const feature = {
       verificationCases: buildVerificationCases(),
       decision,
       plots,
-      scene: null
+      scene: null,
     };
-  }
+  },
 };
 
 export const model = {
   kind: "derived",
   evaluate(runtimeContext) {
-    const aircraft = (runtimeContext && runtimeContext.aircraft) || {};
+    const aircraft = runtimeContext?.aircraft ?? runtimeContext ?? {};
     const { cm0, cmAlphaPerRad, angleOfAttackDeg, disturbanceAlphaDeg } = aircraft;
-
-    const cmAtAlpha = computeCmAtAlpha(cm0, cmAlphaPerRad, angleOfAttackDeg);
-    const trimAngleDeg = computeTrimAngleDeg(cm0, cmAlphaPerRad);
-    const deltaCm = computeDeltaCm(cmAlphaPerRad, disturbanceAlphaDeg);
-
-    // model.evaluate returns finite calculated values only (per the feature
-    // data contract). Classifications ("trimmed", disturbance tendency) and
-    // the "not available" trim-angle text are display concerns that belong
-    // in analyze()'s results/decision, not here, so a zero-slope or
-    // zero-disturbance case never hands the runtime a non-finite value.
-    const values = {
-      cmAtAlpha,
-      deltaCm
-    };
-    if (typeof trimAngleDeg === "number") {
-      values.trimAngleDeg = trimAngleDeg;
-    }
-
+    const values = computeTrimResponse({
+      cm0,
+      cmAlphaPerRad,
+      angleOfAttackDeg,
+      disturbanceAlphaDeg,
+    });
     return { values };
-  }
+  },
 };
